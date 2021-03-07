@@ -1,0 +1,31 @@
+function [Acc,Sen,Spe,Auc]=TwoClassificationmeasure(Y,pre_Y,pre_value)
+% [m n] = pre_value;
+eps=10^-5;
+% pre_Y(pre_Y==-1)=2;
+% Y(Y==-1)=2;
+% if all(pre_Y>0)==1 
+%     pre_Y = [pre_Y;-1];
+%     Y = [Y;-1];
+%     pre_value = [pre_value;1];
+% elseif all(pre_Y<0)==1
+%     pre_Y = [pre_Y;1]; 
+%     Y = [Y;1];
+%     pre_value = [pre_value;1];
+% end
+pre_Y(pre_Y>0)=1;
+pre_Y(pre_Y<0)=2;
+Y(Y>0)=1;
+Y(Y<0)=2;
+CP = classperf(Y,pre_Y);
+Acc = CP.CorrectRate;
+Sen = CP.Sensitivity;
+Spe = CP.Specificity;
+% opt.c = -10:2:10;
+%   cmdsvm= ['-q -t 0 -s  0 -h 0 -e 0.001 -w1 1.0 -c ', num2str(2^opt.c(opt.bestc))];
+%   model = train(trY, sparse(trX), cmdsvm);
+%   [pre_label  acc pre_value] = predict(teY, sparse(teX), model);       
+ pre_value(find(isinf(pre_value))) = eps;
+ pre_value(find(isnan(pre_value))) = eps;
+ pre_value(find(~isreal(pre_value))) = eps;
+        
+ [~,~,~,Auc] = perfcurve(Y,pre_value,1);
