@@ -1,0 +1,62 @@
+function [sexind, Sm_all] = Objfun_slide_LDA5_testing(data,label)
+load NC_OCD_slide_window
+
+for i = 1:10
+    sexind0(:,i) = crossvalind('Kfold', 20,10);
+    sexind1(:,i) = crossvalind('Kfold', 62,10);
+end
+sexind = [sexind0;sexind1];
+
+label = Y;
+
+for Ite = 1:10
+    for k = 1:10
+        test  = sexind(:,Ite) == k;        train = ~test; 
+        label_var = label;
+        label_var(test)=0;
+%         [Sm] = Objfun_slide_LDA5(data,label_var,10);
+%         Sm_all{k,Ite} = Sm;
+%         clear Sm label_var
+        [Y_semi] = singleY_twoY (label_var);
+        label_semi_all{k,Ite} = Y_semi;
+        fprintf('%d,  %d\n',Ite,k)
+    end
+end
+clear Ite k train test label_var
+
+% for Ite = 1:10
+%     for k = 1:10
+%         Small = Sm_all{k,Ite};
+%         
+%         for num = 1:181
+%             C = Small{num}(triu(ones(90),1)==1); %% the vector by column 4005*1
+%             tempdata(num,:) = C';
+%         end
+%         Sm_all_matrix{k,Ite} = tempdata;
+%         clear tempdata
+%     end   
+% end
+end
+
+function [Y_semii_data] = singleY_twoY (Y_semi_data)
+
+for i = 1:10
+    Y_semi = Y_semi_data{i};
+    Y_semii = zeros(82,2);
+    for j= 1:size(Y_semi,1)
+        
+        switch Y_semi(j)
+            case 1
+                Y_semii(j,:) = [1 0];
+            case -1
+                Y_semii(j,:) = [0 1];
+            case 0
+                Y_semii(j,:) = [0 0];
+        end
+%         Y0 = Y_semii;
+    end
+    Y_semii_data{i} = Y_semii; 
+end
+
+clear i j
+end
