@@ -1,0 +1,247 @@
+function [Sm] = Objfun_slide_LDA5(Amv,label,K, lambda)
+%% objective function:
+% min_{Sm, Sm*1=1, Sm_ii>0} 
+% \sum_{m}^{M}(\sum_{v}^{V}||Sm - Am^v||_F^2 + lambda*\sum_{p}^{K}||Sm - Sp||_F^2 + [1+\sum_{p}^{K}||Sm - Sp||_F^2 - \sum_{q}^{K}||Sm - Sq||_F^2]_+) 
+% Amv: m * v cell, each cell is n * n matrix
+% label: m * 1 matrix
+% Sm: n * n  matrix
+% Sp: n * n  matrix
+% Sq: n * n  matrix
+% K: the number of neighbors
+% m: the number of samples
+% v: the number of slide-windows
+% n: the number of ROI
+
+%% solutions:
+% for each m, each row 
+% if the hinge loss > 0: \sum_{i}^{n} ||s_i - \frac{1}{V+(lambda+1)*K - K} \sum_{v}^{V}a_i^v + (lambda+1)*\sum_{p}^{K}s_i^p - \sum_{q}^{K}s_i^q||_2^2
+% else:    \sum_{i}^{n} ||s_i - \frac{1}{V+lambda*K} \sum_{v}^{V}a_i^v + lambda*\sum_{p}^{K}s_i^p ||_2^2
+
+%% example: [Sm] = Objfun_slide_LDA5(data,label)
+
+if (~exist('K','var'))    
+    K = 30; 
+end
+
+if (~exist('lambda','var'))    
+    lambda = 0.5; 
+end
+eps =10^-4;
+
+[Sam_num,Time_num] = size(Amv); % Sam_num: the number of sample; Time_num: the time of slide-window
+ROI_num = size(Amv{1,1},1);     % ROI_num: the selected brain region
+
+%% Initialization
+
+%% to calculate the sum of the Amv
+for i = 1:Sam_num
+    sum_Am_i =zeros(ROI_num,ROI_num);
+    for j =1:Time_num
+        sum_Am_i = sum_Am_i + Amv{i,j};
+    end
+    sum_Amv{i} = sum_Am_i;
+end
+
+
+%% Initialize the Sm
+% for i = 1:Sam_num
+%     for j = 1:ROI_num
+%         numerator = (sum_Amv{i});
+%         denominator = Time_num;
+%         v1 = numerator(j,:)/(denominator+eps);
+%         Sm_i{i}(j,:) = ProjectOntoSimplex(v1, 1);
+%     end
+%     Sm{i} = (Sm_i{i} + Sm_i{i}')/2;
+% end
+for i=1:Sam_num
+    Sm_i{i} = rand(ROI_num,ROI_num)*2;
+    Sm{i} = (Sm_i{i} + Sm_i{i}')/2;
+end
+
+
+flagP = 1;
+iter = 1;
+obji =1;
+
+while 1
+    [Sm_update, Sp_value, Sq_value] = generate_Sm_update(Amv, label, Sm, sum_Amv, K, lambda);    
+
+    %% calculate obj
+  
+    sum_obj_term1 = 0;
+    sum_obj_term2 = 0;
+    sumsp = 0;
+    sumsq = 0;
+    
+    for ii = 1:Sam_num
+        for jj = 1:Time_num
+            sum_obj_term1 = sum_obj_term1 + norm((Sm{ii}-Amv{ii,jj}),'fro')^2;
+%             sum(diag(EuDist2(Sm{ii},Amv{ii,jj})).^2);
+        end
+        sum_obj_term2 = sum_obj_term2 + lambda * sum(Sp_value{ii}) + max(1 + sum(Sp_value{ii}) - sum(Sq_value{ii}),0);
+        sumsp = sumsp + sum(Sp_value{ii});
+        sumsq = sumsq + sum(Sq_value{ii});
+    end
+    obj(iter) = sum_obj_term1 + sum_obj_term2;    
+    obj1(iter) = sum_obj_term1;
+    obj2(iter) = sum_obj_term2;
+    obj3(iter) = sumsp;
+    obj4(iter) = sumsq;
+    
+    cver = abs((obj(iter)-obji)/obji);
+    obji = obj(iter);
+    iter = iter + 1;
+    if ( cver < eps && iter > 2) || iter == 20,    break,     end
+
+    %% to update Sm
+    Sm = Sm_update;
+end
+if flagP == 1,  plot(obj), end
+
+end
+
+%% to update Si for each row of each sample
+function [Sm_update, Sp_value, Sq_value] = generate_Sm_update(Amv, label, Sm, sum_Amv, K, lambda)
+
+[Sam_num,Time_num] = size(Amv);
+ROI_num = size(Amv{1,1},1); 
+
+num_cluster = unique(label);   % the cluster of label (-1,0,1)
+num_class = length(num_cluster); % the number of class
+
+% to divide the data by the label
+for i = 1:num_class
+    temp1{i} = find(label == num_cluster(i));
+    mk(i) = length(temp1{i});
+    Smc{i} = Sm(temp1{i});
+%     Amvc{i} = Amv(temp1{i},:);
+end
+clear i
+
+for i = 1:Sam_num
+    Sm_each_sam = Sm{i};
+        
+    switch label(i)
+        case 1
+             [res_same, sum_sample_same, res_diff, sum_sample_diff] = nonzero_update(Sm_each_sam, label(i), num_cluster, mk, Smc, K);
+
+        case -1
+             [res_same, sum_sample_same, res_diff, sum_sample_diff] = nonzero_update(Sm_each_sam, label(i), num_cluster, mk, Smc, K);
+
+        case 0
+             [res_same, sum_sample_same, res_diff, sum_sample_diff] = zero_update(Sm_each_sam, Sm, K);
+
+    end
+    sum_same = sum(res_same,2);
+    sum_diff = sum(res_diff,2);
+    
+    for j = 1:ROI_num
+        judge_hinge_term = 1 + sum_same(j) - sum_diff(j);
+        if judge_hinge_term > 0    %% judge > 0
+            v =(sum_Amv{i}(j,:) + (lambda+1) * sum_sample_same(j,:) - sum_sample_diff(j,:))./(Time_num + (lambda+1) * K - K);
+            Sm_each_update(j,:) = ProjectOntoSimplex(v, 1);
+        else  %% judge <= 0
+            v =(sum_Amv{i}(j,:) + sum_sample_same(j,:))/(Time_num + K);
+            Sm_each_update(j,:) = ProjectOntoSimplex(v, 1);
+        end
+        clear v judge_hinge_term
+    end
+    
+    Sp_value{i} = sum_same;
+    Sq_value{i} = sum_diff;
+    Sm_update{i} = (Sm_each_update + Sm_each_update')/2;
+    
+    clear Sm_each_update sum_same sum_diff
+%     i
+end
+
+end
+
+function [res_same, sum_sample_same, res_diff, sum_sample_diff] = nonzero_update(Sm_each_sam, labeli, num_cluster, mk, Smc, K)
+
+ind_ini = find(num_cluster == labeli); % ind_ini--->ind_other: 1--->-1 or -1--->1
+ind_other = find(num_cluster == labeli*-1);
+ROI_num = size(Smc{1}{1},1);
+
+Smc_ini = Smc{ind_ini};
+Smc_other = Smc{ind_other};
+
+
+% to calculate the distance of each row of each sample for the same class
+for j1 = 1:ROI_num       
+    for i1 = 1:mk(ind_ini)
+        dist_same(j1,i1) = EuDist2(Sm_each_sam(j1,:), Smc_ini{i1}(j1,:))^2;
+    end
+    [res_sam(j1,:),ind_sam(j1,:)] = sort(dist_same(j1,:));
+    
+    res_same(j1,:) = res_sam(j1,2:K+1);
+    ind_same(j1,:) = ind_sam(j1,2:K+1);
+    
+    sum_vector_same = zeros(1, ROI_num); 
+    for i2 = 1:K
+        ind1 = ind_same(j1,i2);
+        sum_vector_same = sum_vector_same + Smc_ini{ind1}(j1,:);        
+    end
+    sum_sample_same(j1,:) = sum_vector_same;
+
+end
+
+% to calculate the distance of each row of each sample for the different class
+for j2 = 1:ROI_num    
+    for i3 = 1:mk(ind_other)    
+        dist_diff(j2,i3) = EuDist2(Sm_each_sam(j2,:), Smc_other{i3}(j2,:))^2;
+    end
+    [res_dif(j2,:),ind_dif(j2,:)] = sort(dist_diff(j2,:));
+    
+    res_diff(j2,:) = res_dif(j2,2:K+1);
+    ind_diff(j2,:) = ind_dif(j2,2:K+1);
+    
+    sum_vector_diff = zeros(1, ROI_num); 
+    for i4 = 1:K
+        ind2 = ind_diff(j2,i4);
+        sum_vector_diff = sum_vector_diff + Smc_other{ind2}(j2,:);        
+    end
+    sum_sample_diff(j2,:) = sum_vector_diff;
+
+end
+
+end
+
+function [res_same, sum_sample_same, res_diff, sum_sample_diff] = zero_update(Sm_each_sam, Sm, K)
+
+Sam_num = size(Sm,2);
+ROI_num = size(Sm{1},1);
+
+for i = 1:ROI_num
+    for j = 1:Sam_num
+        dist(i,j) = EuDist2(Sm_each_sam(i,:), Sm{j}(i,:))^2;       
+    end
+    [res_all(i,:),ind_all(i,:)] = sort(dist(i,:));
+    
+    % to select the K-nearest neighbor vector of each row of s_i among all samples
+    res_same(i,:) = res_all(i,2:K+1);
+    ind_same(i,:) = ind_all(i,2:K+1);
+    
+    % to select the K-farthest neighbor vector of each row of s_i among all samples
+    res_diff(i,:) = res_all(i,Sam_num-K+1:Sam_num);
+    ind_diff(i,:) = ind_all(i,Sam_num-K+1:Sam_num);
+    
+    % to calculate the sum of K-nearest neighobor vector of each row of s_i
+    sum_vector_same = zeros(1, ROI_num); 
+    for z1 = 1:K
+        ind1 = ind_same(i,z1);
+        sum_vector_same = sum_vector_same + Sm{ind1}(i,:);        
+    end
+    sum_sample_same(i,:) = sum_vector_same;
+    
+    % to calculate the sum of K-farthest neighobor vector of each row of s_i
+    sum_vector_diff = zeros(1, ROI_num); 
+    for z2 = 1:K
+        ind2 = ind_same(i,z2);
+        sum_vector_diff = sum_vector_diff + Sm{ind2}(i,:);        
+    end
+    sum_sample_diff(i,:) = sum_vector_diff;
+    
+end
+
+end
