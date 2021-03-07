@@ -1,0 +1,140 @@
+function liblinearL1RL2LOSS
+
+load lasso_subfeature_1556_1089
+
+addpath(genpath('/media/rhu/New Volume/lib_software/liblinear-2.20/'));
+
+X = X_feature_1089;
+Y = label;
+% data = train_data;
+% X   = (data - repmat(mean(data),size(data,1),1))./repmat(std(data,0,1),size(data,1),1);
+sexind = [];
+for j = 1:10
+    for i = 1:10
+        sexind1(:,i) = crossvalind('Kfold', 86,10);
+        sexind2(:,i) = crossvalind('Kfold', 95, 10);
+        sexind_ini = [sexind1;sexind2];
+    end
+    sexind = [sexind,sexind_ini];
+    clear sexind_ini
+end
+
+% sexind = [sexind,sexind,sexind,sexind,sexind,sexind,sexind,sexind,sexind,sexind];
+
+% X = low_matrix;
+B1idx = [];
+B2idx = [];
+B3idx = [];
+select_w = [];
+for Ite = 1:10
+    for k = 1:10        
+        test  = sexind(:,Ite) == k;        tra = ~test; 
+        
+        
+        %% validation step
+        bestcv = 0;
+        for c = -10:1:10
+            cmd = ['-s 5 -v 5 -c ', num2str(2^c)];
+            cv = libtrain(Y(tra), sparse(X(tra,:)), cmd);
+            if (cv >= bestcv)
+                bestcv = cv;
+                bestc = 2^c;
+
+            end
+        end
+
+        
+        %% model selection and train model generation
+        bestcmd                 = ['-s 5 -c ', num2str(bestc)];
+        model                   = libtrain(Y(tra), sparse(X(tra,:)), bestcmd);
+        
+        B1idx  = [B1idx,find(model.w >0)];
+        select_w{Ite,k} = find(model.w >0);
+        B2idx(Ite,k) = bestc;
+        B3idx(Ite,k) = length(find(model.w >0));
+%         idx = find(model.w~=0);
+%         W = model.w;
+%         X_tra = X(tra,:) * W';
+%         X_sub_feature = X_tra(:,idx);
+% 
+%         model1                   = libtrain(Y(tra), sparse(X_sub_feature), bestcmd);
+        %% test step
+        [pre_val acc pre_lable] = libpredict(Y(test), sparse(X(test,:)), model);
+        
+        ACC(Ite,k) = acc(1,1);
+        [teResults(1),teResults(2),teResults(3),teResults(4),teResults(5),teResults(6),teResults(7)] = AccSenSpe(pre_val,Y(test));
+        accuracy(Ite,k) = teResults(1,1);
+        sensitivity(Ite,k) = teResults(1,2);
+        specificity(Ite,k) = teResults(1,3);
+        Fscore(Ite,k) = teResults(1,4);
+        Precision(Ite,k) = teResults(1,5);
+        AUC(Ite,k) = AUC_cal(Y(test),pre_val); 
+    end
+    Ite
+end
+meanACC = mean(ACC(:));
+meanacc = mean(accuracy(:));
+meansen = mean(sensitivity(:));
+meanspe = mean(specificity(:));
+meanfs = mean(Fscore(:));
+meanpre = mean(Precision(:));
+meanauc = mean(AUC(:));
+
+frequency = tabulate(B1idx');
+frequency1 = sortrows(frequency,-2);
+lengs = length(find(frequency1(:,2)~=0));
+ind = frequency1(1:lengs,1);
+select_data_X = X_guiyi(:,ind);
+lengs1 = length(find(frequency1(:,2)>99));
+ind1 = frequency1(1:lengs1,1);
+select_data_X1 = X_guiyi(:,ind1);
+inde1 = ind1(1:100,1);
+select_data_X_100 = select_data_X1(:,1:100);
+
+
+% changA = reshape(ACC',1,100);
+% [changA2,idx]=sort(changA,'descend');
+% changB = reshape(B2idx',1,100);
+% changB2 = changB(idx);
+% 
+% classify(sexind,train_data,Y);
+
+end
+
+function classify(sexind,X,Y)
+
+
+X=train_data;
+for Ite = 1:10
+    for k = 1:10        
+        test  = sexind(:,Ite) == k;        tra = ~test; 
+        
+        %% validation step
+        bestcv = 0;
+
+        for c = -10:1:10
+
+            cmd = ['-s 5 -v 5 -c ', num2str(2^c)];
+            cv = libtrain(Y(tra), sparse(X(tra,:)), cmd);
+            if (cv >= bestcv)
+                bestcv = cv;
+                bestc = 2^c;
+                %bestg = g(j);
+            end
+        end
+        %end
+        
+        %% model selection and train model generation
+        bestcmd                 = ['-s 5 -c ', num2str(bestc)];
+        model                   = libtrain(Y(tra), sparse(X(tra,:)), bestcmd);
+        
+        %% test step
+        [pre_val acc pre_lable] = libpredict(Y(test), sparse(X(test,:)), model);
+        
+        ACC(Ite,k) = acc(1,1);
+    end
+    Ite
+end
+
+end
+% mean(ACC(:))
