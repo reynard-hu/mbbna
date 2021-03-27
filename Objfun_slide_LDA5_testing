@@ -1,4 +1,4 @@
-function [sexind, Sm_all] = Objfun_slide_LDA5_testing(data,label)
+function [sexind, Sm_all,Sm_all_matrix] = Objfun_slide_LDA5_testing(data,label)
 load NC_OCD  % load data
 
 for i = 1:10
@@ -14,8 +14,8 @@ for Ite = 1:10
         test  = sexind(:,Ite) == k;        train = ~test; 
         label_var = label;
         label_var(test)=0;
-%         [Sm] = Objfun_slide_LDA5(data,label_var,10);
-%         Sm_all{k,Ite} = Sm;
+        [Sm] = Objfun_slide_LDA5(data,label_var,10);
+        Sm_all{k,Ite} = Sm;
 %         clear Sm label_var
         [Y_semi] = singleY_twoY (label_var);
         label_semi_all{k,Ite} = Y_semi;
@@ -24,18 +24,18 @@ for Ite = 1:10
 end
 clear Ite k train test label_var
 
-% for Ite = 1:10
-%     for k = 1:10
-%         Small = Sm_all{k,Ite};
-%         
-%         for num = 1:181
-%             C = Small{num}(triu(ones(90),1)==1); %% the vector by column 4005*1
-%             tempdata(num,:) = C';
-%         end
-%         Sm_all_matrix{k,Ite} = tempdata;
-%         clear tempdata
-%     end   
-% end
+for Ite = 1:10
+    for k = 1:10
+        Small = Sm_all{k,Ite};
+        
+        for num = 1:181
+            C = Small{num}(triu(ones(90),1)==1); %% the vector by column 4005*1
+            tempdata(num,:) = C';
+        end
+        Sm_all_matrix{k,Ite} = tempdata;
+        clear tempdata
+    end   
+end
 end
 
 function [Y_semii_data] = singleY_twoY (Y_semi_data)
