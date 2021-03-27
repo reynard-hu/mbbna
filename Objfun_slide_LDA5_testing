@@ -1,5 +1,5 @@
 function [sexind, Sm_all] = Objfun_slide_LDA5_testing(data,label)
-load NC_OCD_slide_window
+load NC_OCD  % load data
 
 for i = 1:10
     sexind0(:,i) = crossvalind('Kfold', 20,10);
