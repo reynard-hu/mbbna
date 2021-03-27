@@ -1,0 +1,73 @@
+%% load data
+
+data = X;
+label = Y;
+
+[sexind, Sm_all,Sm_all_matrix] = Objfun_slide_LDA5_testing(data,label);
+
+
+addpath(genpath('/media/rhu/New Volume1/1.3third_paper_TMI/add_experiments/datasets/NIFD_MeanTimeSeq(1)/libsvm-3.20/'));
+
+
+for Ite = 1:10
+    for k = 1:10 
+        X = Sm_all_matrix{k,Ite};
+        Y = label;
+        test  = sexind(:,Ite) == k;        train = ~test; 
+        
+        %% validation step
+        bestcv = 0;
+        % for j = 1:length(g)  %% for rbf kernel
+        for c = -10:1:10
+            %cmd = ['-s 5 -v 5 -c ', num2str(2^c), '-g ', num2str(g(j))];
+            
+%             cmd = ['-v 5 -p -c ', num2str(2^c)];
+%             cv = libsvmtrain(Y(train), sparse(X(train,:)), cmd);
+            cmd = ['-s 5 -v 5 -c ', num2str(2^c)];
+            cv = libtrain(Y(train), sparse(X(train,:)), cmd);
+            if (cv >= bestcv)
+                bestcv = cv;
+                bestc = 2^c;
+                %bestg = g(j);
+            end
+        end
+        %end
+        
+        %% model selection and train model generation       
+        bestcmd                 = ['-s 5 -c ', num2str(bestc)];
+        model                   = libtrain(Y(train), sparse(X(train,:)), bestcmd);
+        
+        %% test step
+        [pre_val acc pre_lable] = libpredict(Y(test), sparse(X(test,:)), model);
+        
+        ACC(Ite,k) = acc(1,1);
+        
+        [Acc,Sen,Spe,Auc] = TwoClassificationmeasure(Y(test),pre_lable,pre_val);
+        acc1(Ite,k) = Acc;
+        sen(Ite,k) = Sen;
+        spe(Ite,k) = Spe;
+        auc(Ite,k) = Auc;
+        
+        
+        [teResults(1),teResults(2),teResults(3),teResults(4),teResults(5),teResults(6),teResults(7)] = AccSenSpe(pre_val,Y(test));
+        accuracy(Ite,k) = teResults(1,1);
+        sensitivity(Ite,k) = teResults(1,2);
+        specificity(Ite,k) = teResults(1,3);
+        Fscore(Ite,k) = teResults(1,4);
+        Precision(Ite,k) = teResults(1,5);
+        AUC(Ite,k) = AUC_cal(Y(test),pre_val); 
+    end
+    Ite
+end
+meanACC = mean(ACC(:));
+meanacc = mean(accuracy(:));
+meansen = mean(sensitivity(:));
+meanspe = mean(specificity(:));
+meanfs  = mean(Fscore(:));
+meanpre = mean(Precision(:));
+meanauc = mean(AUC(:));
+
+meanacc_twoclass = mean(acc1(:));
+meansen_twoclass = mean(sen(:));
+meanspe_twoclass = mean(spe(:));
+meanauc_twoclass = mean(auc(:));
