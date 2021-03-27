@@ -6,6 +6,7 @@ this is the objective function file and it outputs a matirx which considers the 
 
 
 ## Objfun_slide_LDA5_testing
-this file provide the final test for semi-supervised applications.
+this file obtain the matrix type for all obtained Sm for all subjects.
 
-## Other files provide the necessary support for the final experiments. 
+## Example
+this file provide the final test for semi-supervised applications.
