@@ -10,3 +10,6 @@ this file obtain the matrix type for all obtained Sm for all subjects.
 
 ## Example
 this file provide the final test for semi-supervised applications.
+
+## Liblinear download
+https://github.com/cjlin1/liblinear
