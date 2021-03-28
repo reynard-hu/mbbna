@@ -6,7 +6,7 @@ label = Y;
 [sexind, Sm_all,Sm_all_matrix] = Objfun_slide_LDA5_testing(data,label);
 
 
-addpath(genpath('/media/rhu/New Volume1/datasets/NIFD_MeanTimeSeq/libsvm-3.20/'));
+addpath(genpath('/media/rhu/New Volume1/datasets/NIFD_MeanTimeSeq/liblinear/'));
 
 
 B1idx = [];
